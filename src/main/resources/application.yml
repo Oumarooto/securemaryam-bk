@@ -4,7 +4,7 @@ spring:
 
 
   datasource:
-    url: jdbc:mysql://localhost:3306/e-maryam
+    url: jdbc:mysql://localhost:3306/securemaryam
     username: root
     password: password
   jpa:
@@ -21,3 +21,4 @@ spring:
   sql:
     init:
       mode: never
+      continue-on-error: false
