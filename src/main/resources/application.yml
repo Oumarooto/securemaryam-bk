@@ -1,24 +1,7 @@
 spring:
-  application:
-    name: e-maryam
+  profiles:
+    active: @spring.profiles.active@
 
-
-  datasource:
-    url: jdbc:mysql://localhost:3306/securemaryam
-    username: root
-    password: password
-  jpa:
-    database-platform: org.hibernate.dialect.MySQL8Dialect
-    generate-ddl: true
-    show-sql: true
-    hibernate:
-      ddl-auto: update
-    properties:
-      hibernate:
-        globally_quoted_identifiers: true
-        dialect:
-          format_sql: true
-  sql:
-    init:
-      mode: never
-      continue-on-error: false
+application:
+  title: SecureMaryam
+  version: v1.0
