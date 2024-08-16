@@ -1,7 +1,6 @@
 package io.jokers.e_maryam.repository;
 
 import io.jokers.e_maryam.domain.Role;
-import io.jokers.e_maryam.domain.Users;
 
 import java.util.Collection;
 

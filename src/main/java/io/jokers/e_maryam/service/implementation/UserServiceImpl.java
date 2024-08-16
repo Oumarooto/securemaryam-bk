@@ -21,4 +21,9 @@ public class UserServiceImpl implements UserService {
     public UserDTO createUser(Users user) {
         return UserDTOMapper.fromUser(userRepository.create(user));
     }
+
+    @Override
+    public UserDTO getUserByEmail(String email) {
+        return UserDTOMapper.fromUser(userRepository.getUserByEmail(email));
+    }
 }

@@ -15,5 +15,6 @@ public interface UserRepository<T extends Users>{
 
     /* More complex Operations */
     String getVerificationUrl(String key, String type);
+    Users getUserByEmail(String email);
 
 }

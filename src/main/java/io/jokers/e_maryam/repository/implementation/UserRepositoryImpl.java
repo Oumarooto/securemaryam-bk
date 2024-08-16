@@ -1,12 +1,12 @@
 package io.jokers.e_maryam.repository.implementation;
 
 import io.jokers.e_maryam.domain.Role;
+import io.jokers.e_maryam.domain.UserPrincipal;
 import io.jokers.e_maryam.domain.Users;
-import io.jokers.e_maryam.enumeration.RoleType;
 import io.jokers.e_maryam.exception.ApiException;
-import io.jokers.e_maryam.query.UserQuery;
 import io.jokers.e_maryam.repository.RoleRepository;
 import io.jokers.e_maryam.repository.UserRepository;
+import io.jokers.e_maryam.rowmapper.UserRowMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.EmptyResultDataAccessException;
@@ -15,6 +15,9 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.core.namedparam.SqlParameterSource;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.KeyHolder;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Repository;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
@@ -30,11 +33,11 @@ import static java.util.Objects.requireNonNull;
 @Repository
 @RequiredArgsConstructor
 @Slf4j
-public class UserRepositoryImpl implements UserRepository<Users> {
+public class UserRepositoryImpl implements UserRepository<Users>, UserDetailsService {
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
     private final RoleRepository<Role> roleRepository;
-    private final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder(12);
+    private final BCryptPasswordEncoder encoder;
 
     @Override
     public Users create(Users user) {
@@ -101,5 +104,30 @@ public class UserRepositoryImpl implements UserRepository<Users> {
     @Override
     public Boolean delete(Long id) {
         return null;
+    }
+
+    @Override
+    public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
+        Users user = getUserByEmail(email);
+        if (user == null) {
+            log.error("User not found in the database");
+            throw new UsernameNotFoundException("User not found in the database");
+        }else {
+            log.info("User found in the database : {} ",email);
+            return new UserPrincipal(user, roleRepository.getRoleByUserId(user.getId()).getPermission());
+        }
+    }
+
+    @Override
+    public Users getUserByEmail(String email) {
+        try {
+            return jdbcTemplate.queryForObject(SELECT_USER_BY_EMAIL_URL_QUERY, of("email",email), new UserRowMapper());
+        }catch (EmptyResultDataAccessException e){
+            log.error(e.getMessage());
+            throw new ApiException("No User found by email : " + email);
+        }catch (Exception e){
+            log.error(e.getMessage());
+            throw new ApiException("An error occured. Please try again");
+        }
     }
 }
