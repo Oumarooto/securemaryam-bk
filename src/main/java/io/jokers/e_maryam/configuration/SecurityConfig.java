@@ -34,7 +34,7 @@ public class SecurityConfig {
     public static final String LOCALHOST4200 = "LOCALHOST:4200";
     public static final String LOCALHOST3000 = "LOCALHOST:3000";
 
-    private static final String[] PUBLIC_URLS = { "/user/login/**" };
+    private static final String[] PUBLIC_URLS = { "/user/login/**" , "/user/verify/code/**"};
 
     private final BCryptPasswordEncoder encoder;
     private final UserDetailsService userDetailsService;

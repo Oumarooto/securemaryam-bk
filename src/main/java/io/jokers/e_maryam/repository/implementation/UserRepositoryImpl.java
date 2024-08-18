@@ -3,12 +3,15 @@ package io.jokers.e_maryam.repository.implementation;
 import io.jokers.e_maryam.domain.Role;
 import io.jokers.e_maryam.domain.UserPrincipal;
 import io.jokers.e_maryam.domain.Users;
+import io.jokers.e_maryam.dto.UserDTO;
 import io.jokers.e_maryam.exception.ApiException;
 import io.jokers.e_maryam.repository.RoleRepository;
 import io.jokers.e_maryam.repository.UserRepository;
 import io.jokers.e_maryam.rowmapper.UserRowMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.RandomStringUtils;
+import org.apache.commons.lang3.time.DateFormatUtils;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -27,8 +30,10 @@ import java.util.*;
 import static io.jokers.e_maryam.enumeration.RoleType.*;
 import static io.jokers.e_maryam.enumeration.VerificationType.*;
 import static io.jokers.e_maryam.query.UserQuery.*;
+import static java.lang.System.*;
 import static java.util.Map.*;
 import static java.util.Objects.requireNonNull;
+import static org.apache.commons.lang3.time.DateUtils.addDays;
 
 @Repository
 @RequiredArgsConstructor
@@ -38,6 +43,7 @@ public class UserRepositoryImpl implements UserRepository<Users>, UserDetailsSer
     private final NamedParameterJdbcTemplate jdbcTemplate;
     private final RoleRepository<Role> roleRepository;
     private final BCryptPasswordEncoder encoder;
+    private final String DATE_FORMAT = "yyyy-MM-dd hh:mm:ss";
 
     @Override
     public Users create(Users user) {
@@ -48,7 +54,7 @@ public class UserRepositoryImpl implements UserRepository<Users>, UserDetailsSer
         try{
             KeyHolder holder = new GeneratedKeyHolder();
             SqlParameterSource parameters = getSqlParameterSource(user);
-            jdbcTemplate.update(INSERT_USER_URL_QUERY ,parameters, holder);
+            jdbcTemplate.update(INSERT_USER_QUERY ,parameters, holder);
             user.setId(requireNonNull(holder.getKey()).longValue());
             // Add role to the user
             roleRepository.addRoleToUser(user.getId(), ROLE_USER.name());
@@ -70,20 +76,8 @@ public class UserRepositoryImpl implements UserRepository<Users>, UserDetailsSer
         }
     }
 
-    private SqlParameterSource getSqlParameterSource(Users user) {
-        return new MapSqlParameterSource()
-                .addValue("firstName", user.getFirstName())
-                .addValue("lastName", user.getLastName())
-                .addValue("email", user.getEmail())
-                .addValue("password", encoder.encode(user.getPassword()));
-    }
-
     public String getVerificationUrl(String key, String type){
         return ServletUriComponentsBuilder.fromCurrentContextPath().path("/user/verify/" + type + "/" + key).toUriString();
-    }
-
-    private Integer getEmailCount(String email) {
-        return jdbcTemplate.queryForObject(COUNT_USER_EMAIL_URL_QUERY, of("email",email), Integer.class);
     }
 
     @Override
@@ -121,7 +115,7 @@ public class UserRepositoryImpl implements UserRepository<Users>, UserDetailsSer
     @Override
     public Users getUserByEmail(String email) {
         try {
-            return jdbcTemplate.queryForObject(SELECT_USER_BY_EMAIL_URL_QUERY, of("email",email), new UserRowMapper());
+            return jdbcTemplate.queryForObject(SELECT_USER_BY_EMAIL_QUERY, of("email",email), new UserRowMapper());
         }catch (EmptyResultDataAccessException e){
             log.error(e.getMessage());
             throw new ApiException("No User found by email : " + email);
@@ -130,4 +124,69 @@ public class UserRepositoryImpl implements UserRepository<Users>, UserDetailsSer
             throw new ApiException("An error occured. Please try again");
         }
     }
+
+    @Override
+    public void sendVerificationCode(UserDTO userDTO) {
+        String expirationDate = DateFormatUtils.format(addDays(new Date(),1), DATE_FORMAT);
+        String verificationCode = RandomStringUtils.randomAlphabetic(8).toUpperCase();
+        try {
+           jdbcTemplate.update(DELETE_VERIFICATION_CODE_BY_USER_ID_QUERY, of("userId",userDTO.getId()));
+           jdbcTemplate.update(INSERT_VERIFICATION_CODE_QUERY, of("userId", userDTO.getId(), "code", verificationCode, "expiration_date", expirationDate));
+           log.info("Verification Code sent : {}", verificationCode);
+           //sendSMS(userDTO.getPhone(), "From : Secure Maryam\n Verification code : " + verificationCode);
+        } catch (EmptyResultDataAccessException e) {
+            log.error(e.getMessage());
+            throw new ApiException("");
+        } catch (Exception e) {
+            log.error(e.getMessage());
+            throw new ApiException("An error occurred. Please try again");
+        }
+    }
+
+    @Override
+    public Users verifyCode(String email, String code) {
+        if (Boolean.TRUE.equals(isVerificationCodeExpired(code)))
+            throw new ApiException("This code has expired. Please login again.");
+        try {
+            Users userByCode = jdbcTemplate.queryForObject(SELECT_USER_BY_USER_CODE_QUERY, of("code", code), new UserRowMapper());
+            Users userByEmail = jdbcTemplate.queryForObject(SELECT_USER_BY_EMAIL_QUERY, of("email", email), new UserRowMapper());
+            if (requireNonNull(userByCode).getEmail().equalsIgnoreCase(requireNonNull(userByEmail).getEmail())){
+                jdbcTemplate.update(DELETE_CODE, of("code",code));
+                return userByCode;
+            }else {
+                throw new ApiException("Code is invalid. Please try again !!!");
+            }
+        } catch (EmptyResultDataAccessException exception) {
+            log.error(exception.getMessage());
+            throw new ApiException("Could not find record.");
+        } catch (Exception exception){
+            log.error(exception.getMessage());
+            throw new ApiException("An error occurred. Please try again !!!");
+        }
+    }
+
+    private Boolean isVerificationCodeExpired(String code) {
+        try {
+            return jdbcTemplate.queryForObject(SELECT_EXPIRATION_CODE_QUERY, of("code", code), Boolean.class);
+        } catch (EmptyResultDataAccessException e){
+            log.error(e.getMessage());
+            throw new ApiException("This code is not valid. Please log in again");
+        } catch (Exception e){
+            log.error(e.getMessage());
+            throw new ApiException("An error occurred. Please try again !!!");
+        }
+    }
+
+    private Integer getEmailCount(String email) {
+        return jdbcTemplate.queryForObject(COUNT_USER_EMAIL_QUERY, of("email",email), Integer.class);
+    }
+
+    private SqlParameterSource getSqlParameterSource(Users user) {
+        return new MapSqlParameterSource()
+                .addValue("firstName", user.getFirstName())
+                .addValue("lastName", user.getLastName())
+                .addValue("email", user.getEmail())
+                .addValue("password", encoder.encode(user.getPassword()));
+    }
+
 }

@@ -1,3 +1,6 @@
+jwt:
+  secret: mycomplexsecurepqssword
+
 spring:
   application:
     name: e-maryam
