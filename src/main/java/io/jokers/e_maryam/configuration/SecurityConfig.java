@@ -2,6 +2,7 @@ package io.jokers.e_maryam.configuration;
 
 import io.jokers.e_maryam.Handler.CustomAccessDeniedHandler;
 import io.jokers.e_maryam.Handler.CustomAuthenticationEntryPoint;
+import io.jokers.e_maryam.filter.CustomAuthorizationFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -17,11 +18,6 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.web.cors.CorsConfiguration;
-import org.springframework.web.cors.CorsConfigurationSource;
-
-import java.util.Arrays;
-import java.util.List;
 
 import static org.springframework.http.HttpMethod.*;
 
@@ -34,12 +30,13 @@ public class SecurityConfig {
     public static final String LOCALHOST4200 = "LOCALHOST:4200";
     public static final String LOCALHOST3000 = "LOCALHOST:3000";
 
-    private static final String[] PUBLIC_URLS = { "/user/login/**" , "/user/verify/code/**"};
+    private static final String[] PUBLIC_URLS = { "/user/login/**" , "/user/register/**", "/user/verify/code/**"};
 
     private final BCryptPasswordEncoder encoder;
     private final UserDetailsService userDetailsService;
     private final CustomAccessDeniedHandler customAccessDeniedHandler;
     private final CustomAuthenticationEntryPoint customAuthenticationEntryPoint;
+    private final CustomAuthorizationFilter customAuthorizationFilter;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -58,9 +55,30 @@ public class SecurityConfig {
                         .requestMatchers(DELETE,"/user/delete/**").hasAnyAuthority("DELETE:USER")
                         .requestMatchers(DELETE, "/customer/delete/**").hasAnyAuthority("CUSTOMER:DELETE")
                         .anyRequest().authenticated())
-                //.addFilterBefore(customAuthorization, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(customAuthorizationFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
     }
+
+
+    @Bean
+    public AuthenticationManager authenticationManager(){
+        DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
+        authProvider.setUserDetailsService(userDetailsService);
+        authProvider.setPasswordEncoder(encoder);
+        return new ProviderManager(authProvider);
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
 
 /*    @Bean
     public CorsConfigurationSource corsConfiguration() {
@@ -71,12 +89,3 @@ public class SecurityConfig {
                 "Accept", "Jwt-Token", "Authorization", "X-Requested-With"));
         return (CorsConfigurationSource) corsConfiguration;
     }*/
-
-    @Bean
-    public AuthenticationManager authenticationManager(){
-        DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
-        authProvider.setUserDetailsService(userDetailsService);
-        authProvider.setPasswordEncoder(encoder);
-        return new ProviderManager(authProvider);
-    }
-}

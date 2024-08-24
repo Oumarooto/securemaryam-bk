@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
@@ -20,9 +21,11 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import java.net.URI;
 
 import static io.jokers.e_maryam.dtomapper.UserDTOMapper.toUser;
+import static java.lang.System.*;
 import static java.time.LocalDateTime.*;
 import static java.util.Map.of;
 import static org.springframework.http.HttpStatus.*;
+import static org.springframework.security.authentication.UsernamePasswordAuthenticationToken.unauthenticated;
 
 @RestController
 @RequestMapping(path = "/user")
@@ -37,7 +40,7 @@ public class UserResource {
 
     @PostMapping("/login")
     public ResponseEntity<HttpResponse> login(@RequestBody @Valid LoginForm loginForm){
-        authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(loginForm.getEmail(), loginForm.getPassword()));
+        authenticationManager.authenticate(unauthenticated(loginForm.getEmail(), loginForm.getPassword()));
         UserDTO userDTO  = userService.getUserByEmail(loginForm.getEmail());
         return userDTO.isUsingMfa() ? sendVerificationCode(userDTO): sendResponse(userDTO);
     }
@@ -53,6 +56,21 @@ public class UserResource {
                         .message("User created")
                         .status(CREATED)
                         .statusCode(CREATED.value())
+                        .build()
+        );
+    }
+
+    @GetMapping("/profile")
+    public ResponseEntity<HttpResponse> profile(Authentication authentication){
+        UserDTO userDTO = userService.getUserByEmail(authentication.getName());
+        out.println("Profile - authentication " + authentication);
+        return ResponseEntity.ok().body(
+                HttpResponse.builder()
+                        .timeStamp(now().toString())
+                        .data(of("user", userDTO))
+                        .message("Profile retrieved")
+                        .status(OK)
+                        .statusCode(OK.value())
                         .build()
         );
     }
