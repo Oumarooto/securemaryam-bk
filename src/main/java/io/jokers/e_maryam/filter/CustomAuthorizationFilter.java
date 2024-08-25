@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static io.jokers.e_maryam.utils.ExceptionUtils.processError;
 import static java.util.Arrays.asList;
 import static java.util.Map.*;
 import static java.util.Optional.ofNullable;
@@ -51,7 +52,7 @@ public class CustomAuthorizationFilter extends OncePerRequestFilter {
             filterChain.doFilter(request, response);
         } catch (Exception exception) {
             log.error(exception.getMessage());
-            //processError(request, response, exception);
+            processError(request, response, exception);
         }
 
     }

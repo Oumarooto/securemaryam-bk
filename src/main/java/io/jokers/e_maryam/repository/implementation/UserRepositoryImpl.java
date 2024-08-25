@@ -40,6 +40,7 @@ import static org.apache.commons.lang3.time.DateUtils.addDays;
 @Slf4j
 public class UserRepositoryImpl implements UserRepository<Users>, UserDetailsService {
 
+    public static final String EMAIL_KEY = "email";
     private final NamedParameterJdbcTemplate jdbcTemplate;
     private final RoleRepository<Role> roleRepository;
     private final BCryptPasswordEncoder encoder;
@@ -108,17 +109,20 @@ public class UserRepositoryImpl implements UserRepository<Users>, UserDetailsSer
             throw new UsernameNotFoundException("User not found in the database");
         }else {
             log.info("User found in the database : {} ",email);
-            return new UserPrincipal(user, roleRepository.getRoleByUserId(user.getId()).getPermission());
+            return new UserPrincipal(user, roleRepository.getRoleByUserId(user.getId()));
         }
     }
 
     @Override
     public Users getUserByEmail(String email) {
+        out.println("getUserByEmail "+ email);
         try {
-            return jdbcTemplate.queryForObject(SELECT_USER_BY_EMAIL_QUERY, of("email",email), new UserRowMapper());
+            Users user = jdbcTemplate.queryForObject(SELECT_USER_BY_EMAIL_QUERY, of(EMAIL_KEY, email), new UserRowMapper());
+            out.println("==========SELECT USER "+user.getEmail());
+            return user;
         }catch (EmptyResultDataAccessException e){
             log.error(e.getMessage());
-            throw new ApiException("No User found by email : " + email);
+            throw new ApiException("No User found by email - Function getUserByEmail  : " + email);
         }catch (Exception e){
             log.error(e.getMessage());
             throw new ApiException("An error occured. Please try again");
@@ -149,7 +153,7 @@ public class UserRepositoryImpl implements UserRepository<Users>, UserDetailsSer
             throw new ApiException("This code has expired. Please login again.");
         try {
             Users userByCode = jdbcTemplate.queryForObject(SELECT_USER_BY_USER_CODE_QUERY, of("code", code), new UserRowMapper());
-            Users userByEmail = jdbcTemplate.queryForObject(SELECT_USER_BY_EMAIL_QUERY, of("email", email), new UserRowMapper());
+            Users userByEmail = jdbcTemplate.queryForObject(SELECT_USER_BY_EMAIL_QUERY, of(EMAIL_KEY, email), new UserRowMapper());
             if (requireNonNull(userByCode).getEmail().equalsIgnoreCase(requireNonNull(userByEmail).getEmail())){
                 jdbcTemplate.update(DELETE_CODE, of("code",code));
                 return userByCode;
@@ -178,14 +182,14 @@ public class UserRepositoryImpl implements UserRepository<Users>, UserDetailsSer
     }
 
     private Integer getEmailCount(String email) {
-        return jdbcTemplate.queryForObject(COUNT_USER_EMAIL_QUERY, of("email",email), Integer.class);
+        return jdbcTemplate.queryForObject(COUNT_USER_EMAIL_QUERY, of(EMAIL_KEY,email), Integer.class);
     }
 
     private SqlParameterSource getSqlParameterSource(Users user) {
         return new MapSqlParameterSource()
                 .addValue("firstName", user.getFirstName())
                 .addValue("lastName", user.getLastName())
-                .addValue("email", user.getEmail())
+                .addValue(EMAIL_KEY, user.getEmail())
                 .addValue("password", encoder.encode(user.getPassword()));
     }
 

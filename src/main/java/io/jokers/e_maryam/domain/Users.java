@@ -15,7 +15,6 @@ import static com.fasterxml.jackson.annotation.JsonInclude.Include.*;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-@ToString
 @JsonInclude(NON_DEFAULT)
 public class Users {
 

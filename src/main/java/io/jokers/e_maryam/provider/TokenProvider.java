@@ -6,7 +6,9 @@ import com.auth0.jwt.exceptions.JWTVerificationException;
 import com.auth0.jwt.exceptions.TokenExpiredException;
 import com.auth0.jwt.interfaces.JWTVerifier;
 import io.jokers.e_maryam.domain.UserPrincipal;
+import io.jokers.e_maryam.service.UserService;
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.RequiredArgsConstructor;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -26,6 +28,7 @@ import static java.util.Arrays.stream;
 import static java.util.stream.Collectors.toList;
 
 @Component
+@RequiredArgsConstructor
 public class TokenProvider {
 
     private static final String AUTHORITIES = "authorities";
@@ -34,6 +37,7 @@ public class TokenProvider {
     private static final long REFRESH_TOKEN_EXPIRATION_TIME = 432_000_000;
     private static final String TOKEN_CAN_T_BE_VERIFIED = "Token can't be verified";
     private static final String CUSTOMER_MANAGEMENT_SERVICE = "CUSTOMER_MANAGEMENT_SERVICE";
+    private final UserService userService;
 
     @Value("${jwt.secret}")
     private String secret;
@@ -79,7 +83,7 @@ public class TokenProvider {
                                             List<GrantedAuthority> authorities,
                                             HttpServletRequest request){
         UsernamePasswordAuthenticationToken userPwdAuthenticationToken =
-                new UsernamePasswordAuthenticationToken(email, null, authorities);
+                new UsernamePasswordAuthenticationToken(userService.getUserByEmail(email), null, authorities);
         userPwdAuthenticationToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
         return userPwdAuthenticationToken;
     }
