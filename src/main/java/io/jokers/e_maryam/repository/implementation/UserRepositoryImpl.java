@@ -4,6 +4,7 @@ import io.jokers.e_maryam.domain.Role;
 import io.jokers.e_maryam.domain.UserPrincipal;
 import io.jokers.e_maryam.domain.Users;
 import io.jokers.e_maryam.dto.UserDTO;
+import io.jokers.e_maryam.enumeration.VerificationType;
 import io.jokers.e_maryam.exception.ApiException;
 import io.jokers.e_maryam.repository.RoleRepository;
 import io.jokers.e_maryam.repository.UserRepository;
@@ -33,6 +34,7 @@ import static io.jokers.e_maryam.query.UserQuery.*;
 import static java.lang.System.*;
 import static java.util.Map.*;
 import static java.util.Objects.requireNonNull;
+import static org.apache.commons.lang3.time.DateFormatUtils.format;
 import static org.apache.commons.lang3.time.DateUtils.addDays;
 
 @Repository
@@ -41,6 +43,9 @@ import static org.apache.commons.lang3.time.DateUtils.addDays;
 public class UserRepositoryImpl implements UserRepository<Users>, UserDetailsService {
 
     public static final String EMAIL_KEY = "email";
+    public static final String FIRST_NAME = "firstName";
+    public static final String LAST_NAME = "lastName";
+    public static final String PASSWORD1 = "password";
     private final NamedParameterJdbcTemplate jdbcTemplate;
     private final RoleRepository<Role> roleRepository;
     private final BCryptPasswordEncoder encoder;
@@ -73,7 +78,7 @@ public class UserRepositoryImpl implements UserRepository<Users>, UserDetailsSer
             return user;
         } catch (Exception e){
             log.error(e.getMessage());
-            throw new ApiException("An error occured. Please try again");
+            throw new ApiException("An error occured when saving new user. Please try again");
         }
     }
 
@@ -125,13 +130,13 @@ public class UserRepositoryImpl implements UserRepository<Users>, UserDetailsSer
             throw new ApiException("No User found by email - Function getUserByEmail  : " + email);
         }catch (Exception e){
             log.error(e.getMessage());
-            throw new ApiException("An error occured. Please try again");
+            throw new ApiException("An error occured when getting user by email. Please try again");
         }
     }
 
     @Override
     public void sendVerificationCode(UserDTO userDTO) {
-        String expirationDate = DateFormatUtils.format(addDays(new Date(),1), DATE_FORMAT);
+        String expirationDate = format(addDays(new Date(),1), DATE_FORMAT);
         String verificationCode = RandomStringUtils.randomAlphabetic(8).toUpperCase();
         try {
            jdbcTemplate.update(DELETE_VERIFICATION_CODE_BY_USER_ID_QUERY, of("userId",userDTO.getId()));
@@ -143,7 +148,7 @@ public class UserRepositoryImpl implements UserRepository<Users>, UserDetailsSer
             throw new ApiException("");
         } catch (Exception e) {
             log.error(e.getMessage());
-            throw new ApiException("An error occurred. Please try again");
+            throw new ApiException("An error occurred when sending verification code. Please try again");
         }
     }
 
@@ -165,7 +170,67 @@ public class UserRepositoryImpl implements UserRepository<Users>, UserDetailsSer
             throw new ApiException("Could not find record.");
         } catch (Exception exception){
             log.error(exception.getMessage());
-            throw new ApiException("An error occurred. Please try again !!!");
+            throw new ApiException("An error occurred when verifying code. Please try again !!!");
+        }
+    }
+
+    @Override
+    public void resetPassword(String email) {
+        if (getEmailCount(email.trim().toLowerCase()) <= 0)
+            throw new ApiException("There is no account for this email address.");
+        try {
+                String expirationDate = format(addDays(new Date(), 1), DATE_FORMAT);
+                Users user = getUserByEmail(email);
+                String verificationUrl = getVerificationUrl(UUID.randomUUID().toString(), PASSWORD.getType());
+                jdbcTemplate.update(DELETE_PASSWORD_VERIFICATION_BY_USER_ID_QUERY, of("userId", user.getId()));
+                jdbcTemplate.update(INSERT_PASSWORD_VERIFICATION_QUERY, of("userId", user.getId(), "url", verificationUrl, "expirationDate", expirationDate));
+                // TODO Send email with the url to user
+                log.info("Verification URL : {} | {} | {}" , verificationUrl, user.getId(), expirationDate);
+        } catch (Exception e){
+            log.error(e.getMessage());
+            throw new ApiException("An error occurred when reset password. Please try again !!!");
+        }
+    }
+
+    @Override
+    public Users verifyPasswordKey(String key) {
+        if (isLinkExpired(key, PASSWORD))
+            throw new ApiException("THis link has expired. Please reset your password again.");
+        try {
+            Users user = jdbcTemplate.queryForObject(SELECT_USER_BY_PASSWORD_URL_QUERY, of("url", getVerificationUrl(key, PASSWORD.getType())), new UserRowMapper());
+            assert user != null;
+            //jdbcTemplate.update(DELETE_USER_FROM_PASSWORD_VERIFICATION_QUERY, of("userId", user.getId()));
+            return user;
+        } catch (EmptyResultDataAccessException e){
+            log.error(e.getMessage());
+            throw new ApiException("This link is not valid. Please reset your password again.");
+        } catch (Exception e){
+            log.error(e.getMessage());
+            throw new ApiException("An error occurred when verifying Password Key. Please try again !!!");
+        }
+    }
+
+    @Override
+    public void renewPassword(String key, String password, String confirmPassword) {
+        if (!password.equals(confirmPassword))
+            throw new ApiException("Password don't match. Please try again");
+        try {
+            jdbcTemplate.update(UPDATE_USER_PASSWORD_URL_QUERY, of("password", encoder.encode(password), "url",getVerificationUrl(key, PASSWORD.getType())));
+            jdbcTemplate.update(DELETE_VERIFICATION_URL_QUERY, of( "url",getVerificationUrl(key, PASSWORD.getType())));
+        } catch (Exception e) {
+            log.error(e.getMessage());
+            throw new ApiException("An error occurred when renew Password. Please try again !!!");        }
+    }
+
+    private boolean isLinkExpired(String key, VerificationType password) {
+        try {
+            return Boolean.TRUE.equals(jdbcTemplate.queryForObject(SELECT_EXPIRATION_BY_URL_QUERY, of("url", getVerificationUrl(key, password.getType())), Boolean.class));
+        } catch (EmptyResultDataAccessException e){
+            log.error(e.getMessage());
+            throw new ApiException("This link is not valid. Please reset your password again.");
+        } catch (Exception e){
+            log.error(e.getMessage());
+            throw new ApiException("An error occurred when checking Link expiration. Please try again !!!");
         }
     }
 
@@ -177,7 +242,7 @@ public class UserRepositoryImpl implements UserRepository<Users>, UserDetailsSer
             throw new ApiException("This code is not valid. Please log in again");
         } catch (Exception e){
             log.error(e.getMessage());
-            throw new ApiException("An error occurred. Please try again !!!");
+            throw new ApiException("An error occurred when verifying code expiration. Please try again !!!");
         }
     }
 
@@ -187,10 +252,10 @@ public class UserRepositoryImpl implements UserRepository<Users>, UserDetailsSer
 
     private SqlParameterSource getSqlParameterSource(Users user) {
         return new MapSqlParameterSource()
-                .addValue("firstName", user.getFirstName())
-                .addValue("lastName", user.getLastName())
+                .addValue(FIRST_NAME, user.getFirstName())
+                .addValue(LAST_NAME, user.getLastName())
                 .addValue(EMAIL_KEY, user.getEmail())
-                .addValue("password", encoder.encode(user.getPassword()));
+                .addValue(PASSWORD1, encoder.encode(user.getPassword()));
     }
 
 }
