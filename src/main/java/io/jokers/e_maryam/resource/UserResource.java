@@ -86,6 +86,22 @@ public class UserResource {
 
     // START - Process to reset password when user is not logged in
 
+    @GetMapping("/verify/code/{email}/{code}")
+    public ResponseEntity<HttpResponse> verifyCode(@PathVariable("email") String email, @PathVariable("code") String code){
+        UserDTO userDTO = userService.verifyCode(email, code);
+        return ResponseEntity.ok().body(
+                HttpResponse.builder()
+                        .timeStamp(now().toString())
+                        .data(of("user", userDTO,
+                                "access_token", tokenProvider.createAccessToken(getUserPrincipal(userDTO)),
+                                "refresh_token", tokenProvider.refreshAccessToken(getUserPrincipal(userDTO))))
+                        .message("Login success")
+                        .status(OK)
+                        .statusCode(OK.value())
+                        .build()
+        );
+    }
+
     @GetMapping("/resetpassword/{email}")
     public ResponseEntity<HttpResponse> resetPassword(@PathVariable("email") String email){
         userService.resetPassword(email);
@@ -130,33 +146,26 @@ public class UserResource {
 
     // END - Process to reset password when user is not logged in
 
-    @RequestMapping("/error")
-    public ResponseEntity<HttpResponse> handleError(HttpServletRequest request){
-        return ResponseEntity.badRequest().body(
-                HttpResponse.builder()
-                        .timeStamp(now().toString())
-                        .reason("There is no mapping for a "+request.getMethod() + " request for this path on the server")
-                        .status(BAD_REQUEST)
-                        .statusCode(BAD_REQUEST.value())
-                        .build()
-        );
-    }
-
-
-    @GetMapping("/verify/code/{email}/{code}")
-    public ResponseEntity<HttpResponse> verifyCode(@PathVariable("email") String email, @PathVariable("code") String code){
-        UserDTO userDTO = userService.verifyCode(email, code);
+    @GetMapping("/verify/account/{key}")
+    public ResponseEntity<HttpResponse> verifyAccount(@PathVariable("key") String key){
         return ResponseEntity.ok().body(
                 HttpResponse.builder()
                         .timeStamp(now().toString())
-                        .data(of("user", userDTO,
-                                "access_token", tokenProvider.createAccessToken(getUserPrincipal(userDTO)),
-                                "refresh_token", tokenProvider.refreshAccessToken(getUserPrincipal(userDTO))))
-                        .message("Login success")
+                        .message(Boolean.TRUE.equals(userService.verifyAccountKey(key).isEnabled())? "Account already verified" : "Account verified")
                         .status(OK)
                         .statusCode(OK.value())
                         .build()
         );
+    }
+
+    @RequestMapping("/error")
+    public ResponseEntity<HttpResponse> handleError(HttpServletRequest request){
+        return new ResponseEntity<>(HttpResponse.builder()
+                        .timeStamp(now().toString())
+                        .reason("There is no mapping for a "+request.getMethod() + " request for this path on the server")
+                        .status(BAD_REQUEST)
+                        .statusCode(BAD_REQUEST.value())
+                        .build(), NOT_FOUND);
     }
 
     private UserDTO getAuthenticatedUser(Authentication authentication){
@@ -165,7 +174,8 @@ public class UserResource {
 
     private Authentication authenticate(String email, String password) {
         try {
-            Authentication authentication = authenticationManager.authenticate(unauthenticated(email, password));
+            Authentication authentication;
+            authentication = authenticationManager.authenticate(unauthenticated(email, password));
             return authentication;
         } catch (Exception exception){
             log.error(exception.getMessage());

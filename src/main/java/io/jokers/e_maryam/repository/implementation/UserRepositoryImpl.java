@@ -222,6 +222,21 @@ public class UserRepositoryImpl implements UserRepository<Users>, UserDetailsSer
             throw new ApiException("An error occurred when renew Password. Please try again !!!");        }
     }
 
+    @Override
+    public Users verifyAccountKey(String key) {
+        try {
+            Users user = jdbcTemplate.queryForObject(SELECT_USER_BY_ACCOUNT_QUERY, of("url", getVerificationUrl(key, ACCOUNT.getType())), new UserRowMapper());
+            assert user != null;
+            jdbcTemplate.update(UPDATE_USER_ENABLED_QUERY, of("enabled", true, "id", user.getId()));
+            // Delete after updating - depends on your requirements
+            return user;
+        } catch (EmptyResultDataAccessException exception){
+            throw new ApiException("This link is not valid");
+        } catch (Exception exception){
+            throw new ApiException("An error occurred. Please try again.");
+        }
+    }
+
     private boolean isLinkExpired(String key, VerificationType password) {
         try {
             return Boolean.TRUE.equals(jdbcTemplate.queryForObject(SELECT_EXPIRATION_BY_URL_QUERY, of("url", getVerificationUrl(key, password.getType())), Boolean.class));
