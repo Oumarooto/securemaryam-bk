@@ -28,6 +28,7 @@ import static io.jokers.e_maryam.utils.ExceptionUtils.processError;
 import static java.lang.System.*;
 import static java.time.LocalDateTime.*;
 import static java.util.Map.of;
+import static org.springframework.http.HttpHeaders.AUTHORIZATION;
 import static org.springframework.http.HttpStatus.*;
 import static org.springframework.security.authentication.UsernamePasswordAuthenticationToken.unauthenticated;
 
@@ -44,6 +45,8 @@ public class UserResource {
     private final HttpServletResponse response;
     private final BCryptPasswordEncoder encoder;
     private final AuthenticationManager authenticationManager;
+    private static final String TOKEN_PREFIX = "Bearer ";
+
 
     @PostMapping("/login")
     public ResponseEntity<HttpResponse> login(@RequestBody @Valid LoginForm loginForm){
@@ -158,6 +161,35 @@ public class UserResource {
         );
     }
 
+    @GetMapping("/refresh/token")
+    public ResponseEntity<HttpResponse> refreshToken(HttpServletRequest request){
+        if (isHeaderAndTokenValid(request)){
+            String token = request.getHeader(AUTHORIZATION).substring(TOKEN_PREFIX.length());
+            UserDTO userDTO = userService.getUserByEmail(tokenProvider.getSubject(token, request));
+            return ResponseEntity.ok().body(
+                    HttpResponse.builder()
+                            .timeStamp(now().toString())
+                            .data(of("user", userDTO,
+                                    "access_token", tokenProvider.createAccessToken(getUserPrincipal(userDTO)),
+                                    "refresh_token", token))
+                            .message("Token refresh")
+                            .status(OK)
+                            .statusCode(OK.value())
+                            .build()
+            );
+        } else {
+            return ResponseEntity.badRequest().body(
+                    HttpResponse.builder()
+                            .timeStamp(now().toString())
+                            .reason("Refresh Token missing or invalid")
+                            .developerMessage("Refresh Token missing or invalid")
+                            .status(BAD_REQUEST)
+                            .statusCode(BAD_REQUEST.value())
+                            .build()
+            );
+        }
+    }
+
     @RequestMapping("/error")
     public ResponseEntity<HttpResponse> handleError(HttpServletRequest request){
         return new ResponseEntity<>(HttpResponse.builder()
@@ -208,6 +240,13 @@ public class UserResource {
                 userService.getUserByEmail(userDTO.getEmail())),
                 roleService.getRoleByUserId(userDTO.getId())
         );
+    }
+
+    private boolean isHeaderAndTokenValid(HttpServletRequest request) {
+        String token = request.getHeader(AUTHORIZATION).substring(TOKEN_PREFIX.length());
+        return request.getHeader(AUTHORIZATION) != null
+                && request.getHeader(AUTHORIZATION).startsWith(TOKEN_PREFIX)
+                && tokenProvider.isTokenValid(tokenProvider.getSubject(token, request), token);
     }
 
     private ResponseEntity<HttpResponse> sendVerificationCode(UserDTO userDTO) {
