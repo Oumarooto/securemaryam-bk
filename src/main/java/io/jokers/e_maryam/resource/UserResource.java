@@ -36,6 +36,7 @@ import static org.springframework.security.authentication.UsernamePasswordAuthen
 @RequestMapping(path = "/user")
 @RequiredArgsConstructor
 @Slf4j
+@CrossOrigin("*")
 public class UserResource {
 
     private final UserService userService;
