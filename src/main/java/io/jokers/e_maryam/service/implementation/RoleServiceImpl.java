@@ -11,7 +11,6 @@ import org.springframework.stereotype.Service;
 public class RoleServiceImpl implements RoleService {
 
     private final RoleRepository<Role> roleRepository;
-
     @Override
     public Role getRoleByUserId(Long userId) {
         return roleRepository.getRoleByUserId(userId);

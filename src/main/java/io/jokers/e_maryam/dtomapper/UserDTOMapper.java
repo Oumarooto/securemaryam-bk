@@ -5,7 +5,6 @@ import io.jokers.e_maryam.domain.Role;
 import io.jokers.e_maryam.domain.Users;
 import io.jokers.e_maryam.dto.UserDTO;
 import org.springframework.beans.BeanUtils;
-import org.springframework.stereotype.Component;
 
 public class UserDTOMapper {
 
